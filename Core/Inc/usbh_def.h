@@ -21,6 +21,9 @@
 #ifndef  USBH_DEF_H
 #define  USBH_DEF_H
 
+#include <FreeRTOS.h>
+#include <task.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -467,19 +470,10 @@ typedef struct _USBH_HandleTypeDef
   void                 *pData;
   void (* pUser)(struct _USBH_HandleTypeDef *pHandle, uint8_t id);
 
-#if (USBH_USE_OS == 1U)
-#if osCMSIS < 0x20000
-  osMessageQId          os_event;
-  osThreadId            thread;
-#else
-  osMessageQueueId_t    os_event;
-  osThreadId_t          thread;
-#endif
-  uint32_t              os_msg;
-#endif
-
+  TaskHandle_t task;
 } USBH_HandleTypeDef;
 
+void usbh_notify(USBH_HandleTypeDef *phost, USBH_OSEventTypeDef message);
 
 #if  defined ( __GNUC__ )
 #ifndef __weak

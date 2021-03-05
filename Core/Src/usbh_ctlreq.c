@@ -558,14 +558,7 @@ USBH_StatusTypeDef USBH_CtlReq(USBH_HandleTypeDef *phost, uint8_t *buff,
       phost->RequestState = CMD_WAIT;
       status = USBH_BUSY;
 
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_CONTROL_EVENT);
       break;
 
     case CMD_WAIT:
@@ -585,14 +578,7 @@ USBH_StatusTypeDef USBH_CtlReq(USBH_HandleTypeDef *phost, uint8_t *buff,
       {
         /* .. */
       }
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_CONTROL_EVENT);
       break;
 
     default:
@@ -662,14 +648,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
           }
         }
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else
       {
@@ -677,14 +656,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         {
           phost->Control.state = CTRL_ERROR;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_CONTROL_EVENT);
         }
       }
       break;
@@ -707,14 +679,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
       {
         phost->Control.state = CTRL_STATUS_OUT;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
 
       /* manage error cases*/
@@ -723,14 +688,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         /* In stall case, return to previous machine state*/
         status = USBH_NOT_SUPPORTED;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else
       {
@@ -739,14 +697,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
           /* Device error */
           phost->Control.state = CTRL_ERROR;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_CONTROL_EVENT);
         }
       }
       break;
@@ -769,14 +720,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         /* If the Setup Pkt is sent successful, then change the state */
         phost->Control.state = CTRL_STATUS_IN;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
 
       /* handle error cases */
@@ -786,28 +730,14 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         phost->Control.state = CTRL_STALLED;
         status = USBH_NOT_SUPPORTED;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else if (URB_Status == USBH_URB_NOTREADY)
       {
         /* Nack received from device */
         phost->Control.state = CTRL_DATA_OUT;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else
       {
@@ -817,14 +747,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
           phost->Control.state = CTRL_ERROR;
           status = USBH_FAIL;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_CONTROL_EVENT);
         }
       }
       break;
@@ -848,27 +771,13 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         phost->Control.state = CTRL_COMPLETE;
         status = USBH_OK;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else if (URB_Status == USBH_URB_ERROR)
       {
         phost->Control.state = CTRL_ERROR;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else
       {
@@ -877,14 +786,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
           /* Control transfers completed, Exit the State Machine */
           status = USBH_NOT_SUPPORTED;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_CONTROL_EVENT);
         }
       }
       break;
@@ -903,27 +805,13 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         status = USBH_OK;
         phost->Control.state = CTRL_COMPLETE;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else if (URB_Status == USBH_URB_NOTREADY)
       {
         phost->Control.state = CTRL_STATUS_OUT;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_CONTROL_EVENT);
       }
       else
       {
@@ -931,14 +819,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost)
         {
           phost->Control.state = CTRL_ERROR;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_CONTROL_EVENT);
         }
       }
       break;

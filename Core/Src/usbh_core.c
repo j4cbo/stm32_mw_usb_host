@@ -19,6 +19,8 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include <FreeRTOS.h>
+#include <task.h>
 #include "usbh_core.h"
 
 
@@ -78,11 +80,7 @@ static void USBH_HandleSof(USBH_HandleTypeDef *phost);
 static USBH_StatusTypeDef DeInitStateMachine(USBH_HandleTypeDef *phost);
 
 #if (USBH_USE_OS == 1U)
-#if (osCMSIS < 0x20000U)
-static void USBH_Process_OS(void const *argument);
-#else
 static void USBH_Process_OS(void *argument);
-#endif
 #endif
 
 
@@ -127,39 +125,7 @@ USBH_StatusTypeDef  USBH_Init(USBH_HandleTypeDef *phost,
   }
 
 #if (USBH_USE_OS == 1U)
-#if (osCMSIS < 0x20000U)
-
-  /* Create USB Host Queue */
-  osMessageQDef(USBH_Queue, MSGQUEUE_OBJECTS, uint16_t);
-  phost->os_event = osMessageCreate(osMessageQ(USBH_Queue), NULL);
-
-  /* Create USB Host Task */
-#if defined (USBH_PROCESS_STACK_SIZE)
-  osThreadDef(USBH_Thread, USBH_Process_OS, USBH_PROCESS_PRIO, 0U, USBH_PROCESS_STACK_SIZE);
-#else
-  osThreadDef(USBH_Thread, USBH_Process_OS, USBH_PROCESS_PRIO, 0U, 8U * configMINIMAL_STACK_SIZE);
-#endif /* defined (USBH_PROCESS_STACK_SIZE) */
-
-  phost->thread = osThreadCreate(osThread(USBH_Thread), phost);
-
-#else
-
-  /* Create USB Host Queue */
-  phost->os_event = osMessageQueueNew(MSGQUEUE_OBJECTS, sizeof(uint32_t), NULL);
-
-  /* Create USB Host Task */
-  USBH_Thread_Atrr.name = "USBH_Queue";
-
-#if defined (USBH_PROCESS_STACK_SIZE)
-  USBH_Thread_Atrr.stack_size = USBH_PROCESS_STACK_SIZE;
-#else
-  USBH_Thread_Atrr.stack_size = (8U * configMINIMAL_STACK_SIZE);
-#endif /* defined (USBH_PROCESS_STACK_SIZE) */
-
-  USBH_Thread_Atrr.priority = USBH_PROCESS_PRIO;
-  phost->thread = osThreadNew(USBH_Process_OS, phost, &USBH_Thread_Atrr);
-
-#endif /* (osCMSIS < 0x20000U) */
+  xTaskCreate(USBH_Process_OS, "USBH", 256, phost, 0, &phost->task);
 #endif /* (USBH_USE_OS == 1U) */
 
   /* Initialize low level driver */
@@ -435,14 +401,7 @@ USBH_StatusTypeDef USBH_ReEnumerate(USBH_HandleTypeDef *phost)
     phost->device.is_disconnected = 1U;
   }
 
-#if (USBH_USE_OS == 1U)
-  phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-  (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-  (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+  usbh_notify(phost, USBH_PORT_EVENT);
 
   return USBH_OK;
 }
@@ -482,14 +441,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         phost->device.address = USBH_ADDRESS_DEFAULT;
         phost->Timeout = 0U;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_PORT_EVENT);
       }
       break;
 
@@ -523,14 +475,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
           USBH_Delay(10U);
         }
       }
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_PORT_EVENT);
       break;
 
     case HOST_DEV_ATTACHED :
@@ -560,14 +505,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
                     phost->device.address, phost->device.speed,
                     USBH_EP_CONTROL, (uint16_t)phost->Control.pipe_size);
 
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_PORT_EVENT);
       break;
 
     case HOST_ENUMERATION:
@@ -589,14 +527,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         {
           phost->gState = HOST_INPUT;
         }
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       }
       break;
 
@@ -608,14 +539,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         phost->pUser(phost, HOST_USER_SELECT_CONFIGURATION);
         phost->gState = HOST_SET_CONFIGURATION;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       }
     }
     break;
@@ -628,14 +552,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         USBH_UsrLog("Default configuration set.");
       }
 
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_PORT_EVENT);
       break;
 
     case  HOST_SET_WAKEUP_FEATURE:
@@ -653,14 +570,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         phost->gState = HOST_CHECK_CLASS;
       }
 
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_PORT_EVENT);
       break;
 
     case HOST_CHECK_CLASS:
@@ -705,14 +615,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         }
       }
 
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       break;
 
     case HOST_CLASS_REQUEST:
@@ -740,14 +643,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         phost->gState = HOST_ABORT_STATE;
         USBH_ErrLog("Invalid Class Driver.");
       }
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       break;
 
     case HOST_CLASS:
@@ -788,15 +684,7 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
         /* Device Disconnection Completed, start USB Driver */
         USBH_LL_Start(phost);
       }
-
-#if (USBH_USE_OS == 1U)
-      phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-      (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-      (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+      usbh_notify(phost, USBH_PORT_EVENT);
       break;
 
     case HOST_ABORT_STATE:
@@ -1019,28 +907,14 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
           USBH_UsrLog("Manufacturer : %s", (char *)(void *)phost->device.Data);
           phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
         }
         else if (ReqStatus == USBH_NOT_SUPPORTED)
         {
           USBH_UsrLog("Manufacturer : N/A");
           phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
         }
         else
         {
@@ -1052,14 +926,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
         USBH_UsrLog("Manufacturer : N/A");
         phost->EnumState = ENUM_GET_PRODUCT_STRING_DESC;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       }
       break;
 
@@ -1080,14 +947,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
           USBH_UsrLog("Product : N/A");
           phost->EnumState = ENUM_GET_SERIALNUM_STRING_DESC;
 
-#if (USBH_USE_OS == 1U)
-          phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-          (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-          (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+          usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
         }
         else
         {
@@ -1099,14 +959,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
         USBH_UsrLog("Product : N/A");
         phost->EnumState = ENUM_GET_SERIALNUM_STRING_DESC;
 
-#if (USBH_USE_OS == 1U)
-        phost->os_msg = (uint32_t)USBH_STATE_CHANGED_EVENT;
-#if (osCMSIS < 0x20000U)
-        (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-        (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+        usbh_notify(phost, USBH_STATE_CHANGED_EVENT);
       }
       break;
 
@@ -1196,16 +1049,7 @@ void USBH_LL_PortEnabled(USBH_HandleTypeDef *phost)
 {
   phost->device.PortEnabled = 1U;
 
-#if (USBH_USE_OS == 1U)
-  phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-  (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-  (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
-
-  return;
+  usbh_notify(phost, USBH_PORT_EVENT);
 }
 
 
@@ -1247,15 +1091,7 @@ USBH_StatusTypeDef  USBH_LL_Connect(USBH_HandleTypeDef *phost)
   phost->device.is_disconnected = 0U;
   phost->device.is_ReEnumerated = 0U;
 
-
-#if (USBH_USE_OS == 1U)
-  phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-  (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-  (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+  usbh_notify(phost, USBH_PORT_EVENT);
 
   return USBH_OK;
 }
@@ -1280,14 +1116,7 @@ USBH_StatusTypeDef  USBH_LL_Disconnect(USBH_HandleTypeDef *phost)
   /* FRee Control Pipes */
   USBH_FreePipe(phost, phost->Control.pipe_in);
   USBH_FreePipe(phost, phost->Control.pipe_out);
-#if (USBH_USE_OS == 1U)
-  phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-#if (osCMSIS < 0x20000U)
-  (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-  (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
-#endif
+  usbh_notify(phost, USBH_PORT_EVENT);
 
   return USBH_OK;
 }
@@ -1300,37 +1129,24 @@ USBH_StatusTypeDef  USBH_LL_Disconnect(USBH_HandleTypeDef *phost)
   * @retval None
   */
 
-#if (osCMSIS < 0x20000U)
-static void USBH_Process_OS(void const *argument)
-{
-  osEvent event;
-
-  for (;;)
-  {
-    event = osMessageGet(((USBH_HandleTypeDef *)argument)->os_event, osWaitForever);
-    if (event.status == osEventMessage)
-    {
-      USBH_Process((USBH_HandleTypeDef *)argument);
-    }
-  }
-}
-#else
 static void USBH_Process_OS(void *argument)
 {
-  osStatus_t status;
-
   for (;;)
   {
-    status = osMessageQueueGet(((USBH_HandleTypeDef *)argument)->os_event,
-                               &((USBH_HandleTypeDef *)argument)->os_msg, NULL, osWaitForever);
-    if (status == osOK)
-    {
-      USBH_Process((USBH_HandleTypeDef *)argument);
-    }
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    USBH_Process((USBH_HandleTypeDef *)argument);
   }
 }
-#endif /* (osCMSIS < 0x20000U) */
 
+void usbh_notify(USBH_HandleTypeDef *phost, USBH_OSEventTypeDef message) {
+  if (__get_IPSR() != 0U || __get_PRIMASK() != 0U || __get_BASEPRI() != 0U) {
+    BaseType_t yield = pdFALSE;
+    vTaskNotifyGiveFromISR(phost->task, &yield);
+    portYIELD_FROM_ISR(yield);
+  } else {
+    xTaskNotifyGive(phost->task);
+  }
+}
 
 /**
 * @brief  USBH_LL_NotifyURBChange
@@ -1340,13 +1156,7 @@ static void USBH_Process_OS(void *argument)
 */
 USBH_StatusTypeDef  USBH_LL_NotifyURBChange(USBH_HandleTypeDef *phost)
 {
-  phost->os_msg = (uint32_t)USBH_PORT_EVENT;
-
-#if (osCMSIS < 0x20000U)
-  (void)osMessagePut(phost->os_event, phost->os_msg, 0U);
-#else
-  (void)osMessageQueuePut(phost->os_event, &phost->os_msg, 0U, NULL);
-#endif
+  usbh_notify(phost, USBH_PORT_EVENT);
 
   return USBH_OK;
 }

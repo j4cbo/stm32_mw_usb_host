@@ -125,7 +125,7 @@ USBH_StatusTypeDef  USBH_Init(USBH_HandleTypeDef *phost,
   }
 
 #if (USBH_USE_OS == 1U)
-  xTaskCreate(USBH_Process_OS, "USBH", 256, phost, 0, &phost->task);
+  xTaskCreate(USBH_Process_OS, "USBH", 256, phost, 1, &phost->task);
 #endif /* (USBH_USE_OS == 1U) */
 
   /* Initialize low level driver */

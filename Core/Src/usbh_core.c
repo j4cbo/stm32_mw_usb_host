@@ -1139,7 +1139,7 @@ static void USBH_Process_OS(void *argument)
 }
 
 void usbh_notify(USBH_HandleTypeDef *phost, USBH_OSEventTypeDef message) {
-  if (__get_IPSR() != 0U || __get_PRIMASK() != 0U || __get_BASEPRI() != 0U) {
+  if ((SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0) {
     BaseType_t yield = pdFALSE;
     vTaskNotifyGiveFromISR(phost->task, &yield);
     portYIELD_FROM_ISR(yield);
